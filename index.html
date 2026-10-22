@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173c33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Nexora · Asistente comercial</title>
+<style>
+:root{--g:#1f6a59;--p:#e1f2e9;--bg:#f4f7f3;--ink:#20332e;--line:#dce6df}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{padding:calc(24px + env(safe-area-inset-top)) 18px 24px;background:#173c33;color:#fff;border-radius:0 0 24px 24px}
+header small{letter-spacing:2px}
+h1{margin:5px 0}
+h2{margin:0 0 6px;font-size:18px}
+h3{margin:0 0 10px}
+main{max-width:800px;margin:auto;padding:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat,.panel,.client{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:12px}
+.stat b{display:block;font-size:23px;color:var(--g)}
+.stat span,.muted{color:#6b7a73;font-size:12px}
+.nav{display:flex;gap:7px;overflow:auto;padding:14px 0}
+.btn,.tab{border:0;border-radius:10px;padding:10px 13px;font:inherit;font-weight:650;cursor:pointer;background:var(--g);color:#fff;text-decoration:none;display:inline-block}
+.tab{white-space:nowrap;background:#fff;color:var(--ink);border:1px solid var(--line)}
+.tab.active{background:var(--g);color:#fff}
+.soft{background:var(--p);color:var(--g)}
+.danger{background:#fae6e4;color:#9c3737}
+.section{display:none}
+.section.active{display:block}
+.fieldgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px}
+.full{grid-column:1/-1}
+label{font-size:12px;color:#63736b}
+input,select,textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font:inherit;background:#fcfdfb;color:var(--ink)}
+textarea{min-height:75px}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.client{margin:9px 0}
+.top{display:flex;justify-content:space-between;gap:8px}
+.pill{font-size:11px;border-radius:99px;padding:5px 8px;background:#edf2ed;display:inline-block}
+.ok{background:#dff3e5;color:#226344}
+.late{background:#fae6e4;color:#9c3737}
+.warn{background:#fff3d5;color:#75571b}
+.log{border-top:1px solid var(--line);padding-top:9px;margin-top:9px;font-size:13px}
+.hidden{display:none !important}
+.notice{background:#fff3d5;color:#75571b;padding:10px;border-radius:10px;font-size:12px}
+.empty{text-align:center;padding:20px;color:#718078}
+.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.toolbar input{grid-column:1/-1}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:60}
+.sheet{background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;color:var(--ink)}
+.banner{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:70;background:#173c33;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:776px;margin:auto}
+.banner .actions{margin-top:8px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#20332e;color:#fff;padding:10px 16px;border-radius:99px;font-size:13px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+@media(max-width:500px){.fieldgrid{grid-template-columns:1fr}.full{grid-column:auto}.stats{gap:5px}.stat{padding:10px}.stat span{font-size:10px}}
+</style>
+</head>
+<body>
+<header>
+  <small>ASISTENTE COMERCIAL</small>
+  <h1>Nexora ✦</h1>
+  <div>Seguimientos claros. Clientes atendidos. Más oportunidades.</div>
+  <div class="actions"><button class="btn soft hidden" id="enableNotif" type="button">🔔 Activar avisos</button></div>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main>
+  <div class="stats">
+    <div class="stat"><b id="todayN">0</b><span>Para hoy</span></div>
+    <div class="stat"><b id="lateN">0</b><span>Atrasados</span></div>
+    <div class="stat"><b id="countN">0</b><span>Clientes</span></div>
+  </div>
+
+  <div class="nav">
+    <button class="tab active" data-tab="home">Resumen</button>
+    <button class="tab" data-tab="clients">Clientes</button>
+    <button class="tab" data-tab="form">＋ Registrar</button>
+    <button class="tab" data-tab="data">Exportar datos</button>
+  </div>
+
+  <section id="home" class="section active">
+    <div class="panel">
+      <h2>Seguimientos pendientes</h2>
+      <p class="muted">Marca cada llamada como hecha y registra el resultado para mantener el historial.</p>
+      <div id="dueList"></div>
+    </div>
+    <div class="panel">
+      <h2>Clientes que necesitan atención</h2>
+      <p class="muted">Clientes sin próxima fecha programada y que: llevan 90 días o más sin contacto, tienen el insumo por agotarse (en 14 días o menos), o no tienen ningún contacto registrado.</p>
+      <div id="staleList"></div>
+    </div>
+  </section>
+
+  <section id="clients" class="section">
+    <div class="panel">
+      <h2>Todos los clientes</h2>
+      <div class="toolbar">
+        <input id="search" placeholder="Buscar nombre, código, teléfono o insumo">
+        <select id="filterCat" aria-label="Filtrar por categoría"></select>
+        <select id="sortBy" aria-label="Ordenar por">
+          <option value="name">Orden: nombre A–Z</option>
+          <option value="volume">Orden: mayor compra</option>
+          <option value="date">Orden: próxima fecha</option>
+          <option value="last">Orden: contacto más antiguo</option>
+        </select>
+      </div>
+      <div id="listInfo" class="muted"></div>
+      <div id="allList"></div>
+    </div>
+  </section>
+
+  <section id="form" class="section">
+    <div class="panel">
+      <h2 id="formTitle">Registrar cliente</h2>
+      <form id="clientForm">
+        <input id="id" type="hidden">
+        <div class="fieldgrid">
+          <div class="field"><label>Nombre *</label><input id="name" required></div>
+          <div class="field"><label>Código o empresa</label><input id="code"></div>
+          <div class="field"><label>Documento (CI / NIT)</label><input id="doc" inputmode="text" placeholder="Ej. 1234567 LP"></div>
+          <div class="field"><label>Teléfono</label><input id="phone" type="tel" inputmode="tel" placeholder="Ej. 70000000"></div>
+          <div class="field"><label>Categoría</label>
+            <select id="category"><option>Gemas</option><option>Insumos</option><option>Equipos</option><option>Mixto</option><option>Otro</option></select></div>
+          <div class="field"><label>Volumen de compra (Bs)</label><input id="volume" type="number" min="0" step="0.01" inputmode="decimal"></div>
+          <div class="field"><label>Prioridad</label>
+            <select id="priority"><option>Normal</option><option>Alta</option><option>Urgente</option></select></div>
+          <div class="field"><label>Fecha de seguimiento</label><input id="date" type="date"></div>
+          <div class="field"><label>Hora para llamar</label><input id="time" type="time"></div>
+          <div class="field"><label>Último contacto</label><input id="last" type="date"></div>
+          <div class="field"><label>Frecuencia habitual de seguimiento (meses)</label>
+            <select id="cadence"><option value="">Sin frecuencia fija</option><option value="1">Cada 1 mes</option><option value="2">Cada 2 meses</option><option value="3">Cada 3 meses</option><option value="4">Cada 4 meses</option><option value="6">Cada 6 meses</option><option value="12">Cada 12 meses</option></select></div>
+          <div class="field"><label>Insumo que suele reponer (opcional)</label><input id="product" placeholder="Ej. revestimiento"></div>
+          <div class="field"><label>Duración aproximada de uso (meses)</label>
+            <select id="useMonths"><option value="">No indicado</option><option value="1">1 mes</option><option value="2">2 meses</option><option value="3">3 meses</option><option value="4">4 meses</option><option value="6">6 meses</option><option value="9">9 meses</option><option value="12">12 meses</option></select></div>
+          <div class="full muted">Si dejas la fecha de seguimiento vacía al crear el cliente o al cambiar el último contacto, se calcula sola con la duración de uso o la frecuencia. Si solo editas otros datos y la dejas vacía, se respeta.</div>
+          <div class="field full"><label>Notas y próxima acción</label><textarea id="notes" placeholder="Qué necesita, qué producto le interesa, qué prometiste enviar..."></textarea></div>
+        </div>
+        <div class="actions"><button class="btn">Guardar cliente</button><button class="btn soft" type="button" id="clearBtn">Limpiar</button></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="data" class="section">
+    <div class="panel">
+      <h2>Exportar y respaldar</h2>
+      <p>Para abrir en Excel usa los CSV. Para guardar una copia que se pueda restaurar exactamente (con historial incluido) usa el respaldo completo.</p>
+      <div class="field"><label>Separador de columnas del CSV</label>
+        <select id="sep"><option value=";">Punto y coma ( ; ) — Excel en español</option><option value=",">Coma ( , ) — Excel en inglés</option></select></div>
+      <div class="actions">
+        <button class="btn" id="exportBackup">Respaldo completo (.json)</button>
+        <button class="btn soft" id="exportAll">Clientes + historial (CSV)</button>
+        <button class="btn soft" id="exportCalls">Solo historial (CSV)</button>
+        <button class="btn soft" id="template">Plantilla CSV</button>
+      </div>
+      <div class="notice" style="margin-top:12px">Los datos se guardan solo en este dispositivo y navegador. Haz un respaldo con frecuencia. No se sincroniza con otros dispositivos.</div>
+      <h2 style="margin-top:18px">Importar</h2>
+      <p class="muted">Excel (.xlsx) o CSV: la primera fila debe tener los títulos (Nombre, Teléfono, Categoría, Compra Bs…). Fechas como 15/10/2026 (día/mes/año). Respaldo (.json): restaura todo, historial incluido.</p>
+      <div class="actions">
+        <label class="btn soft" for="importFile">Importar Excel o CSV de clientes</label>
+        <input class="hidden" id="importFile" type="file" accept=".xlsx,.xls,.csv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/octet-stream,*/*">
+        <label class="btn soft" for="restoreFile">Restaurar respaldo (.json)</label>
+        <input class="hidden" id="restoreFile" type="file" accept=".json,application/json">
+      </div>
+      <div id="importStatus" class="muted" style="margin-top:10px"></div>
+      <div id="skippedBox" style="margin-top:10px"></div>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="sheet" id="modalBody"></div></div>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   FUNCIONES PURAS (no tocan la pantalla): fechas, números, CSV
+   ===================================================================== */
+/*PURE-START*/
+const pad = n => String(n).padStart(2, '0');
+const isoDate = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const today = () => isoDate(new Date());
+const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// Suma meses a una fecha AAAA-MM-DD (ajusta el día si el mes es más corto). Devuelve '' si la fecha no es válida.
+function addMonths(date, months) {
+  const m = ISO_RE.exec(date || '');
+  const n = Number(months);
+  if (!m || !n) return '';
+  const first = new Date(+m[1], +m[2] - 1 + n, 1);
+  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return isoDate(new Date(first.getFullYear(), first.getMonth(), Math.min(+m[3], lastDay)));
+}
+function addDays(date, days) {
+  const m = ISO_RE.exec(date || '');
+  if (!m) return '';
+  return isoDate(new Date(+m[1], +m[2] - 1, +m[3] + Number(days)));
+}
+
+// Convierte varios formatos de fecha a AAAA-MM-DD. Interpreta DD/MM/AAAA (día primero). '' si no es válida.
+function normDate(v) {
+  if (v == null) return '';
+  const s = String(v).trim();
+  if (!s) return '';
+  let y, mo, d, m;
+  if ((m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/.exec(s))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else if ((m = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/.exec(s))) { d = +m[1]; mo = +m[2]; y = +m[3]; if (m[3].length === 2) y += 2000; }
+  else if (/^\d{5}$/.test(s) && +s > 30000 && +s < 70000) { // número de serie de Excel
+    const dt = new Date(Date.UTC(1899, 11, 30) + (+s) * 86400000);
+    y = dt.getUTCFullYear(); mo = dt.getUTCMonth() + 1; d = dt.getUTCDate();
+  } else return '';
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return '';
+  return y + '-' + pad(mo) + '-' + pad(d);
+}
+
+// Convierte "9:30", "09.30", "9:30 PM" a "HH:MM". '' si no es válida.
+function normTime(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  if (!s) return '';
+  const m = /^(\d{1,2})[:.h](\d{2})\s*(a\.?\s?m\.?|p\.?\s?m\.?)?$/.exec(s);
+  if (!m) return '';
+  let h = +m[1]; const mi = +m[2]; const ap = m[3];
+  if (ap) {
+    if (h < 1 || h > 12) return '';
+    if (ap[0] === 'p' && h < 12) h += 12;
+    if (ap[0] === 'a' && h === 12) h = 0;
+  }
+  if (h > 23 || mi > 59) return '';
+  return pad(h) + ':' + pad(mi);
+}
+
+// Convierte "2500", "2500,50", "2.500,50", "2,500.50", "Bs 2.500" en número. '' si no es válido.
+// Nota: un punto seguido de exactamente 3 dígitos ("2.500") se interpreta como separador de miles.
+function parseNum(v) {
+  if (typeof v === 'number') return isFinite(v) && v >= 0 ? v : '';
+  let t = String(v == null ? '' : v).replace(/[^\d.,-]/g, '');
+  if (!t || t === '-') return '';
+  if (t.includes(',') && t.includes('.')) {
+    if (t.lastIndexOf(',') > t.lastIndexOf('.')) t = t.replace(/\./g, '').replace(',', '.');
+    else t = t.replace(/,/g, '');
+  } else if (t.includes(',')) {
+    t = /,\d{1,2}$/.test(t) ? t.replace(',', '.') : t.replace(/,/g, '');
+  } else if ((t.match(/\./g) || []).length > 1 || /^[1-9]\d{0,2}\.\d{3}$/.test(t)) {
+    t = t.replace(/\./g, '');
+  }
+  const n = parseFloat(t);
+  return isFinite(n) && n >= 0 ? n : '';
+}
+
+function daysSince(date, ref) {
+  const a = ISO_RE.exec(date || ''), b = ISO_RE.exec(ref || today());
+  if (!a || !b) return null;
+  return Math.round((Date.UTC(+b[1], +b[2] - 1, +b[3]) - Date.UTC(+a[1], +a[2] - 1, +a[3])) / 86400000);
+}
+
+// Detecta el separador del CSV (; , o tabulador) mirando la primera línea con datos.
+function detectDelimiter(text) {
+  const lines = String(text).replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim() && !/^sep=/i.test(l));
+  const line = lines[0] || '';
+  const count = ch => { let n = 0, q = false; for (const c of line) { if (c === '"') q = !q; else if (c === ch && !q) n++; } return n; };
+  const opts = [[';', count(';')], [',', count(',')], ['\t', count('\t')]].sort((a, b) => b[1] - a[1]);
+  return opts[0][1] > 0 ? opts[0][0] : ',';
+}
+
+function parseCSV(text, delim) {
+  let s = String(text).replace(/^\ufeff/, '');
+  if (/^sep=./i.test(s)) s = s.replace(/^sep=.*\r?\n/i, '');
+  const rows = []; let row = [], v = '', q = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '"' && q && s[i + 1] === '"') { v += '"'; i++; }
+    else if (c === '"') q = !q;
+    else if (c === delim && !q) { row.push(v); v = ''; }
+    else if ((c === '\n' || c === '\r') && !q) {
+      if (c === '\r' && s[i + 1] === '\n') i++;
+      row.push(v); if (row.some(x => x.trim())) rows.push(row); row = []; v = '';
+    } else v += c;
+  }
+  row.push(v); if (row.some(x => x.trim())) rows.push(row);
+  return rows;
+}
+
+// Celda de CSV. Si empieza con = + - @ se le antepone ' para que Excel no la ejecute como fórmula.
+function csvCell(x) {
+  let s = String(x == null ? '' : x);
+  if (/^[=+\-@\t\r]/.test(s) && isNaN(Number(s))) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+const unguard = s => String(s).replace(/^'(?=[=+\-@])/, '');
+
+const CATS = ['Gemas', 'Insumos', 'Equipos', 'Mixto', 'Otro'];
+function stripAccents(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
+function normCategory(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return 'Mixto';
+  const k = stripAccents(s);
+  if (/^gema/.test(k)) return 'Gemas';
+  if (/^insumo/.test(k)) return 'Insumos';
+  if (/^equipo/.test(k)) return 'Equipos';
+  if (/^mixt/.test(k)) return 'Mixto';
+  if (/^otro/.test(k)) return 'Otro';
+  return s; // categoría propia: se conserva tal cual
+}
+function normPriority(v) {
+  const k = stripAccents(v == null ? '' : v);
+  if (/^urgente/.test(k)) return 'Urgente';
+  if (/^alta/.test(k)) return 'Alta';
+  return 'Normal';
+}
+
+// "2026-10-13 10:30 — texto | 2026-10-01 — otro texto"  ->  [{status,date,time,result}]
+function parseHistory(s) {
+  return String(s || '').split(' | ').map(p => {
+    const m = /^\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})?\s*[—-]\s*([\s\S]*)$/.exec(p);
+    return m ? { status: 'Hecha', date: m[1], time: m[2] || '', result: m[3].trim() } : null;
+  }).filter(Boolean);
+}
+/*PURE-END*/
+
+/* =====================================================================
+   DATOS Y ALMACENAMIENTO
+   ===================================================================== */
+const KEY = 'nexora_clients_v2';        // misma clave que la versión anterior: tus datos se conservan
+const ALERT_KEY = 'nexora_alerted_v3';
+const SEP_KEY = 'nexora_sep';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function safeGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function safeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function uid() {
+  try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+// Deja cada cliente con campos limpios y válidos (también sirve para datos viejos, importados o restaurados).
+function sanitize(c) {
+  return {
+    id: String(c.id || uid()),
+    name: String(c.name || '').trim(),
+    code: String(c.code || '').trim(),
+    doc: String(c.doc || '').trim(),
+    phone: String(c.phone || '').trim(),
+    category: normCategory(c.category),
+    volume: parseNum(c.volume),
+    priority: normPriority(c.priority),
+    date: normDate(c.date),
+    time: normDate(c.date) ? normTime(c.time) : '',
+    last: normDate(c.last),
+    cadence: String(c.cadence || '').trim(),
+    product: String(c.product || '').trim(),
+    useMonths: String(c.useMonths || '').trim(),
+    notes: String(c.notes || '').trim(),
+    history: (Array.isArray(c.history) ? c.history : []).map(h => ({
+      status: String(h.status || 'Hecha'), date: normDate(h.date), time: normTime(h.time), result: String(h.result || '')
+    }))
+  };
+}
+
+let clients = safeGet(KEY, []).filter(c => c && c.name).map(sanitize);
+let saveFailedNotified = false;
+function saveAll() {
+  const ok = safeSet(KEY, clients);
+  if (!ok && !saveFailedNotified) { saveFailedNotified = true; toast('No se pudo guardar: almacenamiento lleno o bloqueado. Exporta un respaldo.'); }
+  render();
+  return ok;
+}
+const find = id => clients.find(c => c.id === id);
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* =====================================================================
+   LÓGICA DE SEGUIMIENTO
+   ===================================================================== */
+const due = c => !c.date ? 'none' : c.date < today() ? 'late' : c.date === today() ? 'today' : 'future';
+const fmtDate = iso => { const m = ISO_RE.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
+const fmtMoney = n => Number(n).toLocaleString('es-BO', { maximumFractionDigits: 2 });
+const hasVolume = c => c.volume !== '' && c.volume != null;
+
+function lastContactDate(c) {
+  const dates = [c.last, ...(c.history || []).map(h => h.date)].filter(d => ISO_RE.test(d || '')).sort();
+  return dates.length ? dates[dates.length - 1] : '';
+}
+
+// Clientes SIN próxima fecha que necesitan que alguien los llame.
+function attention() {
+  const t = today(), soon = addDays(t, 14), out = [];
+  for (const c of clients) {
+    if (c.date) continue;
+    const lc = lastContactDate(c);
+    if (!lc) { out.push({ c, reason: 'Sin contacto registrado', rank: 2, days: 0 }); continue; }
+    const d = daysSince(lc);
+    const supplyEnd = c.useMonths ? addMonths(lc, c.useMonths) : '';
+    if (supplyEnd && supplyEnd <= soon) {
+      out.push({ c, reason: supplyEnd <= t ? 'Su insumo ya podría haberse agotado' : 'Su insumo podría agotarse pronto (' + fmtDate(supplyEnd) + ')', rank: 0, days: d });
+    } else if (d >= 90) {
+      out.push({ c, reason: 'Sin contacto hace ' + d + ' días', rank: 1, days: d });
+    }
+  }
+  return out.sort((a, b) => a.rank - b.rank || b.days - a.days);
+}
+
+/* =====================================================================
+   PANTALLAS
+   ===================================================================== */
+function tab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === id));
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => tab(b.dataset.tab)));
+
+const telHref = p => 'tel:' + String(p).replace(/[^\d+]/g, '');
+function callBtn(c) { return c.phone ? `<a class="btn soft" href="${esc(telHref(c.phone))}">📞 Llamar</a>` : ''; }
+
+function card(c) {
+  const st = due(c);
+  const label = st === 'today' ? 'Para hoy' : st === 'late' ? 'Atrasado' : st === 'future' ? 'Programado' : 'Sin fecha';
+  const hist = (c.history || []).slice().reverse().slice(0, 3);
+  return `<article class="client">
+    <div class="top"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.code || 'Sin código')} · ${esc(c.category || 'Mixto')}${c.doc ? ' · Doc. ' + esc(c.doc) : ''}${c.phone ? ' · ' + esc(c.phone) : ''}</div></div><span class="pill">${esc(c.priority || 'Normal')}</span></div>
+    <p><span class="pill">Compra: ${hasVolume(c) ? fmtMoney(c.volume) + ' Bs' : 'sin dato'}</span>
+    <span class="pill ${st === 'late' ? 'late' : st === 'today' ? 'ok' : ''}">${label} ${c.date ? esc(fmtDate(c.date)) : ''} ${c.time ? '· ' + esc(c.time) : ''}</span></p>
+    ${c.product ? `<div class="muted">Insumo habitual: ${esc(c.product)}${c.useMonths ? ' · duración aprox. ' + esc(c.useMonths) + ' meses' : ''}</div>` : ''}
+    ${c.cadence ? `<div class="muted">Frecuencia de seguimiento: cada ${esc(c.cadence)} mes(es)</div>` : ''}
+    ${c.notes ? `<div>${esc(c.notes)}</div>` : ''}
+    <div class="muted">Último contacto: ${esc(fmtDate(lastContactDate(c)) || 'No registrado')}</div>
+    <div class="actions">${callBtn(c)}
+      <button class="btn" data-act="log" data-id="${esc(c.id)}">✓ Marcar llamada hecha</button>
+      <button class="btn soft" data-act="edit" data-id="${esc(c.id)}">Editar</button>
+      <button class="btn soft" data-act="resched" data-id="${esc(c.id)}">Cambiar fecha</button>
+      <button class="btn danger" data-act="del" data-id="${esc(c.id)}">Eliminar</button></div>
+    <div class="log"><b>Historial de llamadas (${(c.history || []).length})</b>${hist.map(h => `<p><span class="pill ok">${esc(h.status || 'Hecha')}</span> ${esc(fmtDate(h.date))} ${esc(h.time || '')}<br>${esc(h.result || 'Sin nota')}</p>`).join('') || '<div class="muted">Todavía no hay llamadas registradas.</div>'}</div>
+  </article>`;
+}
+
+function attentionCard(c, reason) {
+  return `<article class="client">
+    <div class="top"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.category || 'Mixto')}${c.phone ? ' · ' + esc(c.phone) : ''}</div></div><span class="pill warn">${esc(reason)}</span></div>
+    <p class="muted">Último contacto: ${esc(fmtDate(lastContactDate(c)) || 'No registrado')}. No tiene próxima fecha programada.${c.product ? ' Insumo habitual: ' + esc(c.product) + '.' : ''}${c.useMonths ? ' Duración estimada: ' + esc(c.useMonths) + ' meses.' : ''}</p>
+    <div class="actions">${callBtn(c)}
+      <button class="btn" data-act="resched" data-id="${esc(c.id)}">Programar seguimiento</button>
+      <button class="btn soft" data-act="log" data-id="${esc(c.id)}">Registrar llamada</button></div>
+  </article>`;
+}
+
+const view = { q: '', cat: '', sort: 'name' };
+
+function render() {
+  const t = today();
+  $('todayN').textContent = clients.filter(c => c.date === t).length;
+  $('lateN').textContent = clients.filter(c => due(c) === 'late').length;
+  $('countN').textContent = clients.length;
+
+  // Resumen
+  const dueList = clients.filter(c => ['today', 'late'].includes(due(c)))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99:99').localeCompare(b.time || '99:99'));
+  $('dueList').innerHTML = dueList.map(card).join('') || '<div class="empty">No hay seguimientos para hoy ni atrasados.</div>';
+  const att = attention();
+  $('staleList').innerHTML = att.map(x => attentionCard(x.c, x.reason)).join('') ||
+    `<div class="empty">${clients.length ? '¡Bien! Ningún cliente sin fecha necesita atención ahora.' : 'Registra tu primer cliente para empezar.'}</div>`;
+
+  // Lista de clientes con filtro y orden
+  const cats = [...new Set([...CATS, ...clients.map(c => c.category).filter(Boolean)])];
+  const opts = '<option value="">Todas las categorías</option>' + cats.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  if ($('filterCat').dataset.sig !== opts) { $('filterCat').innerHTML = opts; $('filterCat').dataset.sig = opts; }
+  $('filterCat').value = view.cat;
+
+  const q = stripAccents(view.q);
+  let arr = clients.filter(c => (!view.cat || c.category === view.cat) &&
+    (!q || stripAccents([c.name, c.code, c.doc, c.phone, c.product, c.notes].join(' ')).includes(q)));
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  arr.sort((a, b) => {
+    if (view.sort === 'volume') return ((+b.volume || 0) - (+a.volume || 0)) || byName(a, b);
+    if (view.sort === 'date') return (a.date || '9999').localeCompare(b.date || '9999') || byName(a, b);
+    if (view.sort === 'last') return (lastContactDate(a) || '0000').localeCompare(lastContactDate(b) || '0000') || byName(a, b);
+    return byName(a, b);
+  });
+  const total = arr.reduce((s, c) => s + (+c.volume || 0), 0);
+  $('listInfo').textContent = clients.length ? `Mostrando ${arr.length} de ${clients.length}` + (total ? ` · Compra total: ${fmtMoney(total)} Bs` : '') : '';
+  $('allList').innerHTML = arr.map(card).join('') || `<div class="empty">${clients.length ? 'Ningún cliente coincide con el filtro.' : 'No hay clientes. Registra uno para empezar.'}</div>`;
+}
+
+$('search').addEventListener('input', e => { view.q = e.target.value; render(); });
+$('filterCat').addEventListener('change', e => { view.cat = e.target.value; render(); });
+$('sortBy').addEventListener('change', e => { view.sort = e.target.value; render(); });
+
+/* =====================================================================
+   FORMULARIO
+   ===================================================================== */
+function setSelect(el, val) {
+  val = val == null ? '' : String(val);
+  if (val && ![...el.options].some(o => o.value === val)) el.add(new Option(val, val));
+  el.value = val;
+}
+function resetForm() { $('clientForm').reset(); $('id').value = ''; $('formTitle').textContent = 'Registrar cliente'; }
+$('clearBtn').addEventListener('click', resetForm);   // OJO: no usar id="reset" en un botón dentro del <form>: tapa form.reset()
+
+$('clientForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const id = $('id').value || uid(), old = find(id);
+  const c = {
+    id, name: $('name').value.trim(), code: $('code').value.trim(), doc: $('doc').value.trim(), phone: $('phone').value.trim(),
+    category: $('category').value, volume: parseNum($('volume').value), priority: $('priority').value,
+    date: normDate($('date').value), time: normTime($('time').value), last: normDate($('last').value),
+    cadence: $('cadence').value, product: $('product').value.trim(), useMonths: $('useMonths').value,
+    notes: $('notes').value.trim(), history: old ? old.history : []
+  };
+  // La fecha automática solo se calcula al crear o al cambiar el último contacto.
+  const lastChanged = !old || old.last !== c.last;
+  if (!c.date && c.last && lastChanged) {
+    const months = c.useMonths || c.cadence;
+    if (months) c.date = addMonths(c.last, months);
+  }
+  if (!c.date) c.time = '';
+  const i = clients.findIndex(x => x.id === id);
+  if (i >= 0) clients[i] = c; else clients.push(c);
+  saveAll();
+  resetForm(); tab('clients'); toast('Cliente guardado');
+});
+
+function editClient(id) {
+  const c = find(id); if (!c) return;
+  tab('form');
+  $('id').value = c.id;
+  for (const f of ['name', 'code', 'doc', 'phone', 'volume', 'date', 'time', 'last', 'product', 'notes']) $(f).value = c[f] == null ? '' : c[f];
+  for (const f of ['category', 'priority', 'cadence', 'useMonths']) setSelect($(f), c[f]);
+  $('formTitle').textContent = 'Editar cliente';
+}
+
+/* =====================================================================
+   VENTANAS (reemplazan prompt/confirm, que fallan en muchas apps instaladas)
+   ===================================================================== */
+function openModal(html) { $('modalBody').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal() { $('modal').classList.add('hidden'); $('modalBody').innerHTML = ''; }
+
+const chipsHTML = `<div class="chips">
+  <button type="button" class="chip" data-act="chip" data-add="7d">+1 semana</button>
+  <button type="button" class="chip" data-act="chip" data-add="1m">+1 mes</button>
+  <button type="button" class="chip" data-act="chip" data-add="3m">+3 meses</button>
+  <button type="button" class="chip" data-act="chip" data-add="none">Sin fecha</button></div>`;
+
+function applyChip(kind) {
+  const d = $('m-date'), t = $('m-time');
+  if (kind === 'none') { d.value = ''; t.value = ''; return; }
+  d.value = kind === '7d' ? addDays(today(), 7) : kind === '1m' ? addMonths(today(), 1) : addMonths(today(), 3);
+  if (!t.value) t.value = '10:00';
+}
+
+function openLog(id) {
+  const c = find(id); if (!c) return;
+  const months = c.useMonths || c.cadence;
+  const suggested = months ? addMonths(today(), months) : '';
+  openModal(`<h3>Llamada a ${esc(c.name)}</h3>
+    <label>¿Qué ocurrió? (contestó, qué necesita, siguiente paso)</label>
+    <textarea id="m-result"></textarea>
+    <div class="fieldgrid" style="margin-top:10px">
+      <div class="field"><label>Próxima fecha de seguimiento</label><input id="m-date" type="date" value="${esc(suggested)}"></div>
+      <div class="field"><label>Hora</label><input id="m-time" type="time" value="${esc(suggested ? (c.time || '10:00') : '')}"></div>
+    </div>
+    ${suggested ? '<div class="muted" style="margin-top:6px">Fecha sugerida según la ' + (c.useMonths ? 'duración de uso' : 'frecuencia') + ' de este cliente.</div>' : ''}
+    ${chipsHTML}
+    <div class="actions"><button class="btn" data-act="log-save" data-id="${esc(id)}">Guardar llamada</button><button class="btn soft" data-act="close">Cancelar</button></div>`);
+}
+function saveLog(id) {
+  const c = find(id); if (!c) return;
+  const now = new Date();
+  c.history = c.history || [];
+  c.history.push({ status: 'Hecha', date: today(), time: pad(now.getHours()) + ':' + pad(now.getMinutes()), result: $('m-result').value.trim() });
+  c.last = today();
+  c.date = normDate($('m-date').value);
+  c.time = c.date ? normTime($('m-time').value) : '';
+  closeModal(); saveAll(); toast('Llamada registrada');
+}
+
+function openResched(id) {
+  const c = find(id); if (!c) return;
+  openModal(`<h3>Fecha de seguimiento · ${esc(c.name)}</h3>
+    <div class="fieldgrid">
+      <div class="field"><label>Fecha</label><input id="m-date" type="date" value="${esc(c.date || '')}"></div>
+      <div class="field"><label>Hora</label><input id="m-time" type="time" value="${esc(c.time || '')}"></div>
+    </div>${chipsHTML}
+    <div class="actions"><button class="btn" data-act="resched-save" data-id="${esc(id)}">Guardar</button><button class="btn soft" data-act="close">Cancelar</button></div>`);
+}
+function saveResched(id) {
+  const c = find(id); if (!c) return;
+  c.date = normDate($('m-date').value);
+  c.time = c.date ? normTime($('m-time').value) : '';
+  closeModal(); saveAll(); toast(c.date ? 'Fecha actualizada' : 'Seguimiento quitado');
+}
+
+function openDel(id) {
+  const c = find(id); if (!c) return;
+  openModal(`<h3>¿Eliminar a ${esc(c.name)}?</h3><p>Se borrará el cliente y todo su historial de llamadas. No se puede deshacer.</p>
+    <div class="actions"><button class="btn danger" data-act="del-ok" data-id="${esc(id)}">Sí, eliminar</button><button class="btn soft" data-act="close">Cancelar</button></div>`);
+}
+
+document.addEventListener('click', e => {
+  if (e.target.id === 'modal') { closeModal(); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const id = b.dataset.id;
+  switch (b.dataset.act) {
+    case 'log': openLog(id); break;
+    case 'log-save': saveLog(id); break;
+    case 'edit': editClient(id); break;
+    case 'resched': openResched(id); break;
+    case 'resched-save': saveResched(id); break;
+    case 'del': openDel(id); break;
+    case 'del-ok': clients = clients.filter(c => c.id !== id); closeModal(); saveAll(); toast('Cliente eliminado'); break;
+    case 'chip': applyChip(b.dataset.add); break;
+    case 'close': closeModal(); break;
+    case 'banner-go': hideBanner(); tab('home'); break;
+    case 'banner-x': hideBanner(); break;
+  }
+});
+
+/* =====================================================================
+   EXPORTAR
+   ===================================================================== */
+$('sep').value = safeGet(SEP_KEY, ';');
+$('sep').addEventListener('change', e => safeSet(SEP_KEY, e.target.value));
+
+function downloadFile(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Archivo descargado');
+}
+function downloadCSV(name, rows) {
+  const d = $('sep').value;
+  downloadFile(name, '\ufeff' + rows.map(r => r.map(csvCell).join(d)).join('\r\n'), 'text/csv;charset=utf-8');
+}
+const histText = c => (c.history || []).map(h => `${h.date} ${h.time} — ${h.result}`).join(' | ');
+
+$('exportBackup').addEventListener('click', () => downloadFile('nexora_respaldo_' + today() + '.json',
+  JSON.stringify({ app: 'nexora', version: 3, exportedAt: new Date().toISOString(), clients }, null, 1), 'application/json'));
+$('exportAll').addEventListener('click', () => downloadCSV('nexora_clientes_historial_' + today() + '.csv', [
+  ['ID', 'Nombre', 'Código', 'Documento', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas', 'Historial de llamadas'],
+  ...clients.map(c => [c.id, c.name, c.code, c.doc, c.phone, c.category, c.volume, c.priority, c.date, c.time, c.last, c.cadence, c.product, c.useMonths, c.notes, histText(c)])]));
+$('exportCalls').addEventListener('click', () => downloadCSV('nexora_historial_llamadas_' + today() + '.csv', [
+  ['ID cliente', 'Cliente', 'Fecha', 'Hora', 'Estado', 'Resultado'],
+  ...clients.flatMap(c => (c.history || []).map(h => [c.id, c.name, h.date, h.time, h.status, h.result]))]));
+$('template').addEventListener('click', () => downloadCSV('plantilla_clientes.csv', [
+  ['Nombre', 'Código', 'Documento', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas'],
+  ['Ejemplo Cliente', 'CLI-001', '1234567', '70000000', 'Gemas', '2500', 'Alta', fmtDate(today()), '10:30', fmtDate(today()), '3', 'Revestimiento', '2', 'Enviar catálogo']]));
+
+/* =====================================================================
+   IMPORTAR
+   ===================================================================== */
+function say(msg) { $('importStatus').textContent = msg; }
+
+/* ---- Lector de Excel (.xlsx) sin librerías externas: funciona sin internet ---- */
+const u16 = (b, o) => b[o] | (b[o + 1] << 8);
+const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+async function inflateRaw(data) {
+  if (typeof DecompressionStream === 'undefined') throw new Error('nodecomp');
+  const out = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(out).arrayBuffer());
+}
+function unzipIndex(buf) {
+  const b = new Uint8Array(buf);
+  let e = -1;
+  for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); i--) if (u32(b, i) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('zip');
+  const n = u16(b, e + 10); let p = u32(b, e + 16);
+  const files = {}, dec = new TextDecoder();
+  for (let k = 0; k < n && u32(b, p) === 0x02014b50; k++) {
+    const nlen = u16(b, p + 28), xlen = u16(b, p + 30), clen = u16(b, p + 32);
+    files[dec.decode(b.subarray(p + 46, p + 46 + nlen))] = { method: u16(b, p + 10), csize: u32(b, p + 20), off: u32(b, p + 42) };
+    p += 46 + nlen + xlen + clen;
+  }
+  return { b, files };
+}
+async function zipText(z, name) {
+  const f = z.files[name]; if (!f) return null;
+  const s = f.off + 30 + u16(z.b, f.off + 26) + u16(z.b, f.off + 28);
+  const d = z.b.subarray(s, s + f.csize);
+  return new TextDecoder().decode(f.method === 0 ? d : await inflateRaw(d));
+}
+const xmlDoc = t => t == null ? null : new DOMParser().parseFromString(t, 'application/xml');
+const tags = (node, name) => Array.from(node.getElementsByTagNameNS('*', name));
+function excelDate(num, kind) {
+  const days = Math.floor(num), secs = Math.round((num - days) * 86400);
+  const H = Math.floor(secs / 3600) % 24, M = Math.floor(secs % 3600 / 60);
+  if (kind === 'time' || days < 1) return pad(H) + ':' + pad(M);
+  const dt = new Date(Date.UTC(1899, 11, 30) + days * 86400000);
+  return pad(dt.getUTCDate()) + '/' + pad(dt.getUTCMonth() + 1) + '/' + dt.getUTCFullYear();
+}
+function fmtKind(id, code) {
+  if ((id >= 14 && id <= 17) || (id >= 27 && id <= 31) || (id >= 34 && id <= 36) || (id >= 50 && id <= 58)) return 'date';
+  if ((id >= 18 && id <= 21) || (id >= 45 && id <= 47) || id === 22) return id === 22 ? 'date' : 'time';
+  if (!code) return '';
+  const c = code.replace(/"[^"]*"/g, '').replace(/\[[^\]]*\]/g, '').replace(/\\./g, '').toLowerCase();
+  if (/[dy]/.test(c)) return 'date';
+  if (/[hs]/.test(c)) return 'time';
+  return /m/.test(c) ? 'date' : '';
+}
+// Devuelve una lista de hojas; cada hoja es una lista de filas (listas de celdas).
+async function readXlsx(buf) {
+  const z = unzipIndex(buf);
+  if (!z.files['xl/workbook.xml']) throw new Error('noxlsx');
+  const ss = [];
+  const ssDoc = xmlDoc(await zipText(z, 'xl/sharedStrings.xml'));
+  if (ssDoc) tags(ssDoc, 'si').forEach(si => ss.push(tags(si, 't').filter(t => t.parentNode.localName !== 'rPh').map(t => t.textContent).join('')));
+  const kinds = [];
+  const stDoc = xmlDoc(await zipText(z, 'xl/styles.xml'));
+  if (stDoc) {
+    const fm = {}; tags(stDoc, 'numFmt').forEach(n => { fm[n.getAttribute('numFmtId')] = n.getAttribute('formatCode'); });
+    const xfs = tags(stDoc, 'cellXfs')[0];
+    if (xfs) Array.from(xfs.children).forEach(x => { const id = +x.getAttribute('numFmtId') || 0; kinds.push(fmtKind(id, fm[id])); });
+  }
+  let paths = [];
+  const wb = xmlDoc(await zipText(z, 'xl/workbook.xml')), rel = xmlDoc(await zipText(z, 'xl/_rels/workbook.xml.rels'));
+  if (wb && rel) {
+    const targets = {}; tags(rel, 'Relationship').forEach(r => { targets[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    tags(wb, 'sheet').forEach(sh => {
+      const t = targets[sh.getAttribute('r:id') || sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')];
+      if (t) paths.push(t.startsWith('/') ? t.slice(1) : (t.startsWith('xl/') ? t : 'xl/' + t));
+    });
+  }
+  if (!paths.length) paths = Object.keys(z.files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort();
+  const colIdx = ref => { let n = 0; for (const ch of ref.replace(/\d+/g, '')) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+  const sheets = [];
+  for (const path of paths) {
+    const doc = xmlDoc(await zipText(z, path)); if (!doc) continue;
+    const rows = [];
+    for (const row of tags(doc, 'row')) {
+      const r = [];
+      for (const c of tags(row, 'c')) {
+        const ref = c.getAttribute('r'), i = ref ? colIdx(ref) : r.length, t = c.getAttribute('t'), st = +c.getAttribute('s') || 0;
+        const vEl = tags(c, 'v')[0], v = vEl ? vEl.textContent : '';
+        let val = '';
+        if (t === 's') val = ss[+v] || '';
+        else if (t === 'inlineStr') val = tags(c, 't').map(x => x.textContent).join('');
+        else if (t === 'str' || t === 'e') val = v;
+        else if (t === 'b') val = v === '1' ? 'Sí' : 'No';
+        else if (v !== '') { const num = Number(v); val = !isFinite(num) ? v : (kinds[st] ? excelDate(num, kinds[st]) : num); }
+        r[i] = val;
+      }
+      const clean = Array.from(r, x => x == null ? '' : x);
+      if (clean.some(x => String(x).trim())) rows.push(clean);
+    }
+    sheets.push(rows);
+  }
+  return sheets;
+}
+
+async function readSheetsFromFile(f) {
+  const buf = await f.arrayBuffer(), h = new Uint8Array(buf.slice(0, 4));
+  if (h[0] === 0x50 && h[1] === 0x4b) return await readXlsx(buf);
+  if (h[0] === 0xD0 && h[1] === 0xCF) throw new Error('xls');
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (_) { text = new TextDecoder('windows-1252').decode(buf); }
+  return [parseCSV(text, detectDelimiter(text))];
+}
+
+const DOC_RE = /documento|^ci\b|^c\.?i\.?\b|cedula|\bnit\b|^dni$|carnet/;
+const SKIP_KEY = 'nexora_skipped_v1';
+function importRows(rows) {
+  const origHead = rows.shift().map(x => String(x));
+  const head = origHead.map(x => stripAccents(x));
+  const col = test => head.findIndex(test);
+  const C = {
+    id: col(h => h === 'id'),
+    doc: col(h => DOC_RE.test(h)),
+    name: (() => {
+      const ok = re => col(h => re.test(h) && !DOC_RE.test(h) && !/^id\b/.test(h));
+      const n = ok(/nombre|razon social/); return n >= 0 ? n : ok(/cliente/);
+    })(),
+    code: col(h => /codigo|empresa/.test(h) && !DOC_RE.test(h)),
+    phone: col(h => /telefono|celular|movil|whatsapp|cel\b|fono/.test(h)),
+    cat: col(h => /categoria|rubro|tipo/.test(h)),
+    vol: col(h => /compra|volumen|monto|total/.test(h)),
+    pri: col(h => /prioridad/.test(h)),
+    date: col(h => /proxima fecha|proxima llamada|fecha de seguimiento|fecha seguimiento|^fecha$/.test(h)),
+    time: col(h => /^hora/.test(h)),
+    last: col(h => /ultimo contacto|ultima llamada|ultima fecha/.test(h)),
+    cad: col(h => /frecuencia/.test(h)),
+    prod: col(h => /insumo|producto/.test(h)),
+    use: col(h => /duracion/.test(h)),
+    notes: col(h => /notas|observaciones|comentarios/.test(h)),
+    hist: col(h => /historial/.test(h))
+  };
+  const key = c => [c.name, c.code, c.doc, c.phone].map(x => String(x).toLowerCase().trim()).join('|');
+  const seen = new Set(clients.map(key));
+  const existingKeys = new Set(seen), skipped = [];
+  let added = 0, updated = 0, dup = 0, noName = 0, badDates = 0;
+  for (const r of rows) {
+    const get = i => i < 0 ? '' : unguard(String(r[i] == null ? '' : r[i]).trim());
+    const name = get(C.name); if (!name) { noName++; skipped.push({ reason: 'Sin nombre', cells: r.map(x => String(x == null ? '' : x)), rec: null }); continue; }
+    const rawDate = get(C.date), rawLast = get(C.last), rawTime = get(C.time);
+    const rec = sanitize({
+      id: get(C.id), name, code: get(C.code), doc: get(C.doc), phone: get(C.phone), category: get(C.cat),
+      volume: (C.vol >= 0 && typeof r[C.vol] === 'number') ? r[C.vol] : get(C.vol), priority: get(C.pri),
+      date: rawDate, time: rawTime, last: rawLast, cadence: (get(C.cad).match(/\d+/) || [''])[0], product: get(C.prod),
+      useMonths: (get(C.use).match(/\d+/) || [''])[0], notes: get(C.notes), history: parseHistory(get(C.hist))
+    });
+    if ((rawDate && !rec.date) || (rawLast && !rec.last)) badDates++;
+    const existing = rec.id && find(rec.id);
+    if (existing) {
+      if (!rec.history.length) rec.history = existing.history;
+      clients[clients.indexOf(existing)] = rec; updated++; continue;
+    }
+    if (seen.has(key(rec))) { dup++; skipped.push({ reason: existingKeys.has(key(rec)) ? 'Repetido: ya estaba en la app' : 'Repetido dentro del archivo', cells: r.map(x => String(x == null ? '' : x)), rec }); continue; }
+    if (!get(C.id)) rec.id = uid();
+    seen.add(key(rec)); clients.push(rec); added++;
+  }
+  safeSet(SKIP_KEY, { head: origHead, items: skipped });
+  saveAll();
+  renderSkipped();
+  say(`Importación lista: ${added} añadidos` + (updated ? `, ${updated} actualizados` : '') + (dup ? `, ${dup} omitidos por repetidos (mismo nombre, código, documento y teléfono)` : '') +
+    (noName ? `, ${noName} filas sin nombre omitidas` : '') + '.' + (badDates ? ` ${badDates} filas tenían fechas que no pude leer; usa el formato DD/MM/AAAA.` : ''));
+}
+
+function renderSkipped() {
+  const box = $('skippedBox'), d = safeGet(SKIP_KEY, null);
+  if (!d || !Array.isArray(d.items) || !d.items.length) { box.innerHTML = ''; return; }
+  const nameIdx = d.head.findIndex(h => /nombre|razon social/.test(stripAccents(h)));
+  const rows = d.items.map(it => {
+    const label = (it.rec && it.rec.name) || (nameIdx >= 0 && it.cells[nameIdx]) || it.cells.filter(x => x.trim()).join(' · ') || '(fila vacía)';
+    const extra = it.rec ? [it.rec.doc, it.rec.phone].filter(Boolean).join(' · ') : it.cells.filter(x => x.trim()).join(' · ');
+    return `<div style="padding:6px 0;border-top:1px solid rgba(0,0,0,.08)"><b>${esc(label)}</b> <span class="pill">${esc(it.reason)}</span><div class="muted">${esc(extra)}</div></div>`;
+  }).join('');
+  const canAdd = d.items.some(it => it.rec);
+  box.innerHTML = `<details open><summary><b>${d.items.length} filas omitidas en la última importación</b></summary>
+    <div style="max-height:260px;overflow:auto;margin:8px 0">${rows}</div>
+    <div class="actions">
+      <button type="button" class="btn soft" id="skipDl">Descargar omitidas (CSV)</button>
+      ${canAdd ? '<button type="button" class="btn soft" id="skipAdd">Añadir los repetidos igual</button>' : ''}
+      <button type="button" class="btn soft" id="skipClear">Borrar esta lista</button>
+    </div></details>`;
+}
+$('skippedBox').addEventListener('click', e => {
+  const id = e.target.id, d = safeGet(SKIP_KEY, null);
+  if (!d) return;
+  if (id === 'skipDl') downloadCSV('nexora_omitidas_' + today() + '.csv', [['Motivo', ...d.head], ...d.items.map(it => [it.reason, ...it.cells])]);
+  else if (id === 'skipAdd') {
+    let n = 0; const rest = [];
+    for (const it of d.items) { if (it.rec) { const rec = sanitize(it.rec); rec.id = uid(); clients.push(rec); n++; } else rest.push(it); }
+    safeSet(SKIP_KEY, { head: d.head, items: rest }); saveAll(); renderSkipped();
+    say(`${n} clientes repetidos añadidos.` + (rest.length ? ` Quedan ${rest.length} filas sin nombre.` : ''));
+  } else if (id === 'skipClear') { safeSet(SKIP_KEY, { head: d.head, items: [] }); renderSkipped(); }
+});
+renderSkipped();
+
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  say('Leyendo archivo…');
+  try {
+    const sheets = await readSheetsFromFile(f);
+    const isHead = r => r.some(x => /nombre|cliente/.test(stripAccents(x)));
+    const wide = r => isHead(r) && r.filter(x => String(x).trim()).length >= 2;
+    let rows = null;
+    for (const sh of sheets) {
+      let i = sh.findIndex((r, k) => k < 10 && wide(r));
+      if (i < 0) i = sh.findIndex((r, k) => k < 10 && isHead(r));
+      if (i >= 0) { rows = sh.slice(i); break; }
+    }
+    if (!rows) {
+      const any = sheets.some(sh => sh.length);
+      say(any ? 'No encontré una columna "Nombre". Revisa que la primera fila tenga los títulos (Nombre, Teléfono, Categoría…).' : 'El archivo está vacío.');
+      return;
+    }
+    if (rows.length < 2) { say('El archivo no tiene datos: necesita una fila de títulos y al menos un cliente.'); return; }
+    importRows(rows);
+  } catch (err) {
+    const m = String(err && err.message);
+    if (m === 'xls') say('Ese es un Excel antiguo (.xls). Ábrelo y guárdalo como "Libro de Excel (.xlsx)" o como CSV, e inténtalo de nuevo.');
+    else if (m === 'nodecomp') say('Este navegador no puede leer .xlsx. Guarda el archivo como CSV e inténtalo de nuevo.');
+    else say('No se pudo leer el archivo. Verifica que sea un Excel (.xlsx) o CSV con la primera fila de títulos.');
+  } finally { e.target.value = ''; }
+});
+
+$('restoreFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const list = Array.isArray(data) ? data : data.clients;
+    if (!Array.isArray(list)) throw new Error('formato');
+    let n = 0;
+    for (const raw of list) {
+      if (!raw || !raw.name) continue;
+      const rec = sanitize(raw), i = clients.findIndex(c => c.id === rec.id);
+      if (i >= 0) clients[i] = rec; else clients.push(rec);
+      n++;
+    }
+    saveAll(); say(`Respaldo restaurado: ${n} clientes (los que ya existían se reemplazaron por la versión del respaldo).`);
+  } catch (err) {
+    say('Ese archivo no parece un respaldo de Nexora (.json).');
+  } finally { e.target.value = ''; }
+});
+
+/* =====================================================================
+   RECORDATORIOS
+   Solo funcionan mientras la app está abierta. Para avisos con la app
+   cerrada hace falta una versión nativa.
+   ===================================================================== */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+function updateNotifButton() {
+  const b = $('enableNotif');
+  const can = 'Notification' in window && Notification.permission === 'default';
+  b.classList.toggle('hidden', !can);
+}
+$('enableNotif').addEventListener('click', () => {
+  try { Notification.requestPermission().then(updateNotifButton); } catch (e) {}
+});
+updateNotifButton();
+
+async function notify(title, body) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && reg.showNotification) { await reg.showNotification(title, { body, icon: 'icon-192.png', tag: 'nexora-llamada' }); return; }
+    }
+    new Notification(title, { body });
+  } catch (e) {}
+}
+function showBanner(msg) {
+  $('banner').innerHTML = `<div>${esc(msg)}</div><div class="actions"><button class="btn soft" data-act="banner-go">Ver pendientes</button><button class="btn soft" data-act="banner-x">Cerrar</button></div>`;
+  $('banner').classList.remove('hidden');
+}
+function hideBanner() { $('banner').classList.add('hidden'); }
+
+function check() {
+  try {
+    const d = today(), now = new Date(), hm = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    const seen = safeGet(ALERT_KEY, {});
+    for (const k of Object.keys(seen)) if (!k.includes('_' + d + '_')) delete seen[k]; // limpia días anteriores
+    const fresh = clients.filter(c => c.date === d && c.time && c.time <= hm && !seen[c.id + '_' + d + '_' + c.time]);
+    if (!fresh.length) return;
+    fresh.forEach(c => { seen[c.id + '_' + d + '_' + c.time] = 1; });
+    safeSet(ALERT_KEY, seen);
+    // Un solo aviso con todos los pendientes (no uno por cada llamada).
+    const msg = fresh.length === 1 ? 'Hora de llamar a ' + fresh[0].name
+      : 'Tienes ' + fresh.length + ' llamadas pendientes: ' + fresh.slice(0, 3).map(c => c.name).join(', ') + (fresh.length > 3 ? ' y más' : '');
+    showBanner('⏰ ' + msg); notify('Seguimiento comercial', msg);
+    try { if (navigator.vibrate) navigator.vibrate([250, 100, 250]); } catch (e) {}
+  } catch (e) {}
+}
+setInterval(check, 15000);
+
+/* ===== Inicio ===== */
+saveAll();   // guarda los datos ya normalizados y dibuja la pantalla
+check();
+</script>
+</body>
+</html>
