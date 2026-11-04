@@ -43,6 +43,11 @@ textarea{min-height:75px}
 .late{background:#fae6e4;color:#9c3737}
 .warn{background:#fff3d5;color:#75571b}
 .log{border-top:1px solid var(--line);padding-top:9px;margin-top:9px;font-size:13px}
+.note-pill{background:#e6edfb;color:#2c4a8a}
+.chip.on{background:var(--g);color:#fff;border-color:var(--g)}
+.mini{border:1px solid var(--line);background:#fff;border-radius:8px;padding:2px 8px;font:inherit;font-size:11px;color:#9c3737;cursor:pointer;margin-left:6px}
+details.more{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px}
+details.more summary{cursor:pointer;font-weight:650;color:var(--g)}
 .hidden{display:none !important}
 .notice{background:#fff3d5;color:#75571b;padding:10px;border-radius:10px;font-size:12px}
 .empty{text-align:center;padding:20px;color:#718078}
@@ -122,7 +127,6 @@ textarea{min-height:75px}
         <div class="fieldgrid">
           <div class="field"><label>Nombre *</label><input id="name" required></div>
           <div class="field"><label>Código o empresa</label><input id="code"></div>
-          <div class="field"><label>Documento (CI / NIT)</label><input id="doc" inputmode="text" placeholder="Ej. 1234567 LP"></div>
           <div class="field"><label>Teléfono</label><input id="phone" type="tel" inputmode="tel" placeholder="Ej. 70000000"></div>
           <div class="field"><label>Categoría</label>
             <select id="category"><option>Gemas</option><option>Insumos</option><option>Equipos</option><option>Mixto</option><option>Otro</option></select></div>
@@ -167,7 +171,6 @@ textarea{min-height:75px}
         <input class="hidden" id="restoreFile" type="file" accept=".json,application/json">
       </div>
       <div id="importStatus" class="muted" style="margin-top:10px"></div>
-      <div id="skippedBox" style="margin-top:10px"></div>
     </div>
   </section>
 </main>
@@ -318,7 +321,11 @@ function normPriority(v) {
 function parseHistory(s) {
   return String(s || '').split(' | ').map(p => {
     const m = /^\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})?\s*[—-]\s*([\s\S]*)$/.exec(p);
-    return m ? { status: 'Hecha', date: m[1], time: m[2] || '', result: m[3].trim() } : null;
+    if (!m) return null;
+    let r = m[3].trim(), st = 'Hecha';
+    const nt = /^\[Nota\]\s*/.exec(r);
+    if (nt) { st = 'Nota'; r = r.slice(nt[0].length); }
+    return { status: st, date: m[1], time: m[2] || '', result: r };
   }).filter(Boolean);
 }
 /*PURE-END*/
@@ -345,7 +352,6 @@ function sanitize(c) {
     id: String(c.id || uid()),
     name: String(c.name || '').trim(),
     code: String(c.code || '').trim(),
-    doc: String(c.doc || '').trim(),
     phone: String(c.phone || '').trim(),
     category: normCategory(c.category),
     volume: parseNum(c.volume),
@@ -422,12 +428,19 @@ document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click',
 const telHref = p => 'tel:' + String(p).replace(/[^\d+]/g, '');
 function callBtn(c) { return c.phone ? `<a class="btn soft" href="${esc(telHref(c.phone))}">📞 Llamar</a>` : ''; }
 
+function histItem(h, i, id) {
+  const isNote = h.status === 'Nota';
+  return `<p><span class="pill ${isNote ? 'note-pill' : 'ok'}">${isNote ? '📝 Nota' : esc(h.status || 'Hecha')}</span> ${esc(fmtDate(h.date))} ${esc(h.time || '')}${isNote ? `<button class="mini" data-act="note-del" data-id="${esc(id)}" data-i="${i}">Borrar</button>` : ''}<br>${esc(h.result || 'Sin nota')}</p>`;
+}
+
 function card(c) {
   const st = due(c);
   const label = st === 'today' ? 'Para hoy' : st === 'late' ? 'Atrasado' : st === 'future' ? 'Programado' : 'Sin fecha';
-  const hist = (c.history || []).slice().reverse().slice(0, 3);
+  const all = c.history || [];
+  const hist = all.map((h, i) => ({ h, i })).reverse().slice(0, 4);
+  const nNotes = all.filter(h => h.status === 'Nota').length, nCalls = all.length - nNotes;
   return `<article class="client">
-    <div class="top"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.code || 'Sin código')} · ${esc(c.category || 'Mixto')}${c.doc ? ' · Doc. ' + esc(c.doc) : ''}${c.phone ? ' · ' + esc(c.phone) : ''}</div></div><span class="pill">${esc(c.priority || 'Normal')}</span></div>
+    <div class="top"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.code || 'Sin código')} · ${esc(c.category || 'Mixto')}${c.phone ? ' · ' + esc(c.phone) : ''}</div></div><span class="pill">${esc(c.priority || 'Normal')}</span></div>
     <p><span class="pill">Compra: ${hasVolume(c) ? fmtMoney(c.volume) + ' Bs' : 'sin dato'}</span>
     <span class="pill ${st === 'late' ? 'late' : st === 'today' ? 'ok' : ''}">${label} ${c.date ? esc(fmtDate(c.date)) : ''} ${c.time ? '· ' + esc(c.time) : ''}</span></p>
     ${c.product ? `<div class="muted">Insumo habitual: ${esc(c.product)}${c.useMonths ? ' · duración aprox. ' + esc(c.useMonths) + ' meses' : ''}</div>` : ''}
@@ -436,10 +449,11 @@ function card(c) {
     <div class="muted">Último contacto: ${esc(fmtDate(lastContactDate(c)) || 'No registrado')}</div>
     <div class="actions">${callBtn(c)}
       <button class="btn" data-act="log" data-id="${esc(c.id)}">✓ Marcar llamada hecha</button>
+      <button class="btn soft" data-act="note" data-id="${esc(c.id)}">📝 Nota</button>
       <button class="btn soft" data-act="edit" data-id="${esc(c.id)}">Editar</button>
       <button class="btn soft" data-act="resched" data-id="${esc(c.id)}">Cambiar fecha</button>
       <button class="btn danger" data-act="del" data-id="${esc(c.id)}">Eliminar</button></div>
-    <div class="log"><b>Historial de llamadas (${(c.history || []).length})</b>${hist.map(h => `<p><span class="pill ok">${esc(h.status || 'Hecha')}</span> ${esc(fmtDate(h.date))} ${esc(h.time || '')}<br>${esc(h.result || 'Sin nota')}</p>`).join('') || '<div class="muted">Todavía no hay llamadas registradas.</div>'}</div>
+    <div class="log"><b>Historial (${nCalls} llamada${nCalls === 1 ? '' : 's'} · ${nNotes} nota${nNotes === 1 ? '' : 's'})</b>${hist.map(x => histItem(x.h, x.i, c.id)).join('') || '<div class="muted">Todavía no hay llamadas ni notas.</div>'}${all.length > 4 ? `<div class="actions"><button class="btn soft" data-act="hist-all" data-id="${esc(c.id)}">Ver todo el historial (${all.length})</button></div>` : ''}</div>
   </article>`;
 }
 
@@ -449,7 +463,8 @@ function attentionCard(c, reason) {
     <p class="muted">Último contacto: ${esc(fmtDate(lastContactDate(c)) || 'No registrado')}. No tiene próxima fecha programada.${c.product ? ' Insumo habitual: ' + esc(c.product) + '.' : ''}${c.useMonths ? ' Duración estimada: ' + esc(c.useMonths) + ' meses.' : ''}</p>
     <div class="actions">${callBtn(c)}
       <button class="btn" data-act="resched" data-id="${esc(c.id)}">Programar seguimiento</button>
-      <button class="btn soft" data-act="log" data-id="${esc(c.id)}">Registrar llamada</button></div>
+      <button class="btn soft" data-act="log" data-id="${esc(c.id)}">Registrar llamada</button>
+      <button class="btn soft" data-act="note" data-id="${esc(c.id)}">📝 Nota</button></div>
   </article>`;
 }
 
@@ -477,7 +492,7 @@ function render() {
 
   const q = stripAccents(view.q);
   let arr = clients.filter(c => (!view.cat || c.category === view.cat) &&
-    (!q || stripAccents([c.name, c.code, c.doc, c.phone, c.product, c.notes].join(' ')).includes(q)));
+    (!q || stripAccents([c.name, c.code, c.phone, c.product, c.notes, ...(c.history || []).map(h => h.result)].join(' ')).includes(q)));
   const byName = (a, b) => a.name.localeCompare(b.name, 'es');
   arr.sort((a, b) => {
     if (view.sort === 'volume') return ((+b.volume || 0) - (+a.volume || 0)) || byName(a, b);
@@ -509,7 +524,7 @@ $('clientForm').addEventListener('submit', e => {
   e.preventDefault();
   const id = $('id').value || uid(), old = find(id);
   const c = {
-    id, name: $('name').value.trim(), code: $('code').value.trim(), doc: $('doc').value.trim(), phone: $('phone').value.trim(),
+    id, name: $('name').value.trim(), code: $('code').value.trim(), phone: $('phone').value.trim(),
     category: $('category').value, volume: parseNum($('volume').value), priority: $('priority').value,
     date: normDate($('date').value), time: normTime($('time').value), last: normDate($('last').value),
     cadence: $('cadence').value, product: $('product').value.trim(), useMonths: $('useMonths').value,
@@ -532,7 +547,7 @@ function editClient(id) {
   const c = find(id); if (!c) return;
   tab('form');
   $('id').value = c.id;
-  for (const f of ['name', 'code', 'doc', 'phone', 'volume', 'date', 'time', 'last', 'product', 'notes']) $(f).value = c[f] == null ? '' : c[f];
+  for (const f of ['name', 'code', 'phone', 'volume', 'date', 'time', 'last', 'product', 'notes']) $(f).value = c[f] == null ? '' : c[f];
   for (const f of ['category', 'priority', 'cadence', 'useMonths']) setSelect($(f), c[f]);
   $('formTitle').textContent = 'Editar cliente';
 }
@@ -544,6 +559,7 @@ function openModal(html) { $('modalBody').innerHTML = html; $('modal').classList
 function closeModal() { $('modal').classList.add('hidden'); $('modalBody').innerHTML = ''; }
 
 const chipsHTML = `<div class="chips">
+  <button type="button" class="chip" data-act="chip" data-add="3d">+3 días</button>
   <button type="button" class="chip" data-act="chip" data-add="7d">+1 semana</button>
   <button type="button" class="chip" data-act="chip" data-add="1m">+1 mes</button>
   <button type="button" class="chip" data-act="chip" data-add="3m">+3 meses</button>
@@ -552,7 +568,7 @@ const chipsHTML = `<div class="chips">
 function applyChip(kind) {
   const d = $('m-date'), t = $('m-time');
   if (kind === 'none') { d.value = ''; t.value = ''; return; }
-  d.value = kind === '7d' ? addDays(today(), 7) : kind === '1m' ? addMonths(today(), 1) : addMonths(today(), 3);
+  d.value = kind === '3d' ? addDays(today(), 3) : kind === '7d' ? addDays(today(), 7) : kind === '1m' ? addMonths(today(), 1) : addMonths(today(), 3);
   if (!t.value) t.value = '10:00';
 }
 
@@ -580,6 +596,35 @@ function saveLog(id) {
   c.date = normDate($('m-date').value);
   c.time = c.date ? normTime($('m-time').value) : '';
   closeModal(); saveAll(); toast('Llamada registrada');
+}
+
+function openNote(id) {
+  const c = find(id); if (!c) return;
+  openModal(`<h3>Nota para ${esc(c.name)}</h3>
+    <label>Escribe lo que hiciste o pasó con este cliente</label>
+    <textarea id="m-note" style="min-height:120px" placeholder="Ej. Envié catálogo por WhatsApp. Quedó en responder el viernes."></textarea>
+    <div class="actions"><button class="btn" data-act="note-save" data-id="${esc(id)}">Guardar nota</button><button class="btn soft" data-act="close">Cancelar</button></div>`);
+  setTimeout(() => { const t = $('m-note'); if (t) t.focus(); }, 50);
+}
+function saveNote(id) {
+  const c = find(id); if (!c) return;
+  const text = $('m-note').value.trim();
+  if (!text) { toast('Escribe la nota primero'); return; }
+  const now = new Date();
+  c.history = c.history || [];
+  c.history.push({ status: 'Nota', date: today(), time: pad(now.getHours()) + ':' + pad(now.getMinutes()), result: text });
+  closeModal(); saveAll(); toast('Nota guardada');
+}
+function openNoteDel(id, i) {
+  const c = find(id); const h = c && c.history[i]; if (!h || h.status !== 'Nota') return;
+  openModal(`<h3>¿Borrar esta nota?</h3><p>${esc(h.result)}</p>
+    <div class="actions"><button class="btn danger" data-act="note-del-ok" data-id="${esc(id)}" data-i="${i}">Sí, borrar</button><button class="btn soft" data-act="close">Cancelar</button></div>`);
+}
+function openHistAll(id) {
+  const c = find(id); if (!c) return;
+  const all = c.history || [];
+  openModal(`<h3>Historial · ${esc(c.name)}</h3>${all.map((h, i) => ({ h, i })).reverse().map(x => `<div class="log" style="margin-top:0">${histItem(x.h, x.i, id)}</div>`).join('')}
+    <div class="actions"><button class="btn soft" data-act="close">Cerrar</button></div>`);
 }
 
 function openResched(id) {
@@ -611,6 +656,11 @@ document.addEventListener('click', e => {
   switch (b.dataset.act) {
     case 'log': openLog(id); break;
     case 'log-save': saveLog(id); break;
+    case 'note': openNote(id); break;
+    case 'note-save': saveNote(id); break;
+    case 'note-del': openNoteDel(id, +b.dataset.i); break;
+    case 'note-del-ok': { const c = find(id); const i = +b.dataset.i; if (c && c.history[i] && c.history[i].status === 'Nota') c.history.splice(i, 1); closeModal(); saveAll(); toast('Nota borrada'); break; }
+    case 'hist-all': openHistAll(id); break;
     case 'edit': editClient(id); break;
     case 'resched': openResched(id); break;
     case 'resched-save': saveResched(id); break;
@@ -640,19 +690,19 @@ function downloadCSV(name, rows) {
   const d = $('sep').value;
   downloadFile(name, '\ufeff' + rows.map(r => r.map(csvCell).join(d)).join('\r\n'), 'text/csv;charset=utf-8');
 }
-const histText = c => (c.history || []).map(h => `${h.date} ${h.time} — ${h.result}`).join(' | ');
+const histText = c => (c.history || []).map(h => `${h.date} ${h.time} — ${h.status === 'Nota' ? '[Nota] ' : ''}${h.result}`).join(' | ');
 
 $('exportBackup').addEventListener('click', () => downloadFile('nexora_respaldo_' + today() + '.json',
   JSON.stringify({ app: 'nexora', version: 3, exportedAt: new Date().toISOString(), clients }, null, 1), 'application/json'));
 $('exportAll').addEventListener('click', () => downloadCSV('nexora_clientes_historial_' + today() + '.csv', [
-  ['ID', 'Nombre', 'Código', 'Documento', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas', 'Historial de llamadas'],
-  ...clients.map(c => [c.id, c.name, c.code, c.doc, c.phone, c.category, c.volume, c.priority, c.date, c.time, c.last, c.cadence, c.product, c.useMonths, c.notes, histText(c)])]));
+  ['ID', 'Nombre', 'Código', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas', 'Historial de llamadas'],
+  ...clients.map(c => [c.id, c.name, c.code, c.phone, c.category, c.volume, c.priority, c.date, c.time, c.last, c.cadence, c.product, c.useMonths, c.notes, histText(c)])]));
 $('exportCalls').addEventListener('click', () => downloadCSV('nexora_historial_llamadas_' + today() + '.csv', [
   ['ID cliente', 'Cliente', 'Fecha', 'Hora', 'Estado', 'Resultado'],
   ...clients.flatMap(c => (c.history || []).map(h => [c.id, c.name, h.date, h.time, h.status, h.result]))]));
 $('template').addEventListener('click', () => downloadCSV('plantilla_clientes.csv', [
-  ['Nombre', 'Código', 'Documento', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas'],
-  ['Ejemplo Cliente', 'CLI-001', '1234567', '70000000', 'Gemas', '2500', 'Alta', fmtDate(today()), '10:30', fmtDate(today()), '3', 'Revestimiento', '2', 'Enviar catálogo']]));
+  ['Nombre', 'Código', 'Teléfono', 'Categoría', 'Compra Bs', 'Prioridad', 'Próxima fecha', 'Hora', 'Último contacto', 'Frecuencia meses', 'Insumo habitual', 'Duración uso meses', 'Notas'],
+  ['Ejemplo Cliente', 'CLI-001', '70000000', 'Gemas', '2500', 'Alta', fmtDate(today()), '10:30', fmtDate(today()), '3', 'Revestimiento', '2', 'Enviar catálogo']]));
 
 /* =====================================================================
    IMPORTAR
@@ -764,20 +814,13 @@ async function readSheetsFromFile(f) {
   return [parseCSV(text, detectDelimiter(text))];
 }
 
-const DOC_RE = /documento|^ci\b|^c\.?i\.?\b|cedula|\bnit\b|^dni$|carnet/;
-const SKIP_KEY = 'nexora_skipped_v1';
 function importRows(rows) {
-  const origHead = rows.shift().map(x => String(x));
-  const head = origHead.map(x => stripAccents(x));
+  const head = rows.shift().map(x => stripAccents(x));
   const col = test => head.findIndex(test);
   const C = {
     id: col(h => h === 'id'),
-    doc: col(h => DOC_RE.test(h)),
-    name: (() => {
-      const ok = re => col(h => re.test(h) && !DOC_RE.test(h) && !/^id\b/.test(h));
-      const n = ok(/nombre|razon social/); return n >= 0 ? n : ok(/cliente/);
-    })(),
-    code: col(h => /codigo|empresa/.test(h) && !DOC_RE.test(h)),
+    name: col(h => /nombre|cliente/.test(h) && !/^id\b/.test(h)),
+    code: col(h => /codigo|empresa/.test(h)),
     phone: col(h => /telefono|celular|movil|whatsapp|cel\b|fono/.test(h)),
     cat: col(h => /categoria|rubro|tipo/.test(h)),
     vol: col(h => /compra|volumen|monto|total/.test(h)),
@@ -791,16 +834,15 @@ function importRows(rows) {
     notes: col(h => /notas|observaciones|comentarios/.test(h)),
     hist: col(h => /historial/.test(h))
   };
-  const key = c => [c.name, c.code, c.doc, c.phone].map(x => String(x).toLowerCase().trim()).join('|');
+  const key = c => [c.name, c.code, c.phone].map(x => String(x).toLowerCase().trim()).join('|');
   const seen = new Set(clients.map(key));
-  const existingKeys = new Set(seen), skipped = [];
   let added = 0, updated = 0, dup = 0, noName = 0, badDates = 0;
   for (const r of rows) {
     const get = i => i < 0 ? '' : unguard(String(r[i] == null ? '' : r[i]).trim());
-    const name = get(C.name); if (!name) { noName++; skipped.push({ reason: 'Sin nombre', cells: r.map(x => String(x == null ? '' : x)), rec: null }); continue; }
+    const name = get(C.name); if (!name) { noName++; continue; }
     const rawDate = get(C.date), rawLast = get(C.last), rawTime = get(C.time);
     const rec = sanitize({
-      id: get(C.id), name, code: get(C.code), doc: get(C.doc), phone: get(C.phone), category: get(C.cat),
+      id: get(C.id), name, code: get(C.code), phone: get(C.phone), category: get(C.cat),
       volume: (C.vol >= 0 && typeof r[C.vol] === 'number') ? r[C.vol] : get(C.vol), priority: get(C.pri),
       date: rawDate, time: rawTime, last: rawLast, cadence: (get(C.cad).match(/\d+/) || [''])[0], product: get(C.prod),
       useMonths: (get(C.use).match(/\d+/) || [''])[0], notes: get(C.notes), history: parseHistory(get(C.hist))
@@ -811,47 +853,14 @@ function importRows(rows) {
       if (!rec.history.length) rec.history = existing.history;
       clients[clients.indexOf(existing)] = rec; updated++; continue;
     }
-    if (seen.has(key(rec))) { dup++; skipped.push({ reason: existingKeys.has(key(rec)) ? 'Repetido: ya estaba en la app' : 'Repetido dentro del archivo', cells: r.map(x => String(x == null ? '' : x)), rec }); continue; }
+    if (seen.has(key(rec))) { dup++; continue; }
     if (!get(C.id)) rec.id = uid();
     seen.add(key(rec)); clients.push(rec); added++;
   }
-  safeSet(SKIP_KEY, { head: origHead, items: skipped });
   saveAll();
-  renderSkipped();
-  say(`Importación lista: ${added} añadidos` + (updated ? `, ${updated} actualizados` : '') + (dup ? `, ${dup} omitidos por repetidos (mismo nombre, código, documento y teléfono)` : '') +
+  say(`Importación lista: ${added} añadidos` + (updated ? `, ${updated} actualizados` : '') + (dup ? `, ${dup} omitidos por repetidos (mismo nombre, código y teléfono)` : '') +
     (noName ? `, ${noName} filas sin nombre omitidas` : '') + '.' + (badDates ? ` ${badDates} filas tenían fechas que no pude leer; usa el formato DD/MM/AAAA.` : ''));
 }
-
-function renderSkipped() {
-  const box = $('skippedBox'), d = safeGet(SKIP_KEY, null);
-  if (!d || !Array.isArray(d.items) || !d.items.length) { box.innerHTML = ''; return; }
-  const nameIdx = d.head.findIndex(h => /nombre|razon social/.test(stripAccents(h)));
-  const rows = d.items.map(it => {
-    const label = (it.rec && it.rec.name) || (nameIdx >= 0 && it.cells[nameIdx]) || it.cells.filter(x => x.trim()).join(' · ') || '(fila vacía)';
-    const extra = it.rec ? [it.rec.doc, it.rec.phone].filter(Boolean).join(' · ') : it.cells.filter(x => x.trim()).join(' · ');
-    return `<div style="padding:6px 0;border-top:1px solid rgba(0,0,0,.08)"><b>${esc(label)}</b> <span class="pill">${esc(it.reason)}</span><div class="muted">${esc(extra)}</div></div>`;
-  }).join('');
-  const canAdd = d.items.some(it => it.rec);
-  box.innerHTML = `<details open><summary><b>${d.items.length} filas omitidas en la última importación</b></summary>
-    <div style="max-height:260px;overflow:auto;margin:8px 0">${rows}</div>
-    <div class="actions">
-      <button type="button" class="btn soft" id="skipDl">Descargar omitidas (CSV)</button>
-      ${canAdd ? '<button type="button" class="btn soft" id="skipAdd">Añadir los repetidos igual</button>' : ''}
-      <button type="button" class="btn soft" id="skipClear">Borrar esta lista</button>
-    </div></details>`;
-}
-$('skippedBox').addEventListener('click', e => {
-  const id = e.target.id, d = safeGet(SKIP_KEY, null);
-  if (!d) return;
-  if (id === 'skipDl') downloadCSV('nexora_omitidas_' + today() + '.csv', [['Motivo', ...d.head], ...d.items.map(it => [it.reason, ...it.cells])]);
-  else if (id === 'skipAdd') {
-    let n = 0; const rest = [];
-    for (const it of d.items) { if (it.rec) { const rec = sanitize(it.rec); rec.id = uid(); clients.push(rec); n++; } else rest.push(it); }
-    safeSet(SKIP_KEY, { head: d.head, items: rest }); saveAll(); renderSkipped();
-    say(`${n} clientes repetidos añadidos.` + (rest.length ? ` Quedan ${rest.length} filas sin nombre.` : ''));
-  } else if (id === 'skipClear') { safeSet(SKIP_KEY, { head: d.head, items: [] }); renderSkipped(); }
-});
-renderSkipped();
 
 $('importFile').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
