@@ -1,0 +1,8 @@
+{
+  "appId": "com.gemasjallaza.nexora",
+  "appName": "Nexora",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}
