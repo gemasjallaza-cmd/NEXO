@@ -178,7 +178,11 @@ details.more summary{cursor:pointer;font-weight:650;color:var(--g)}
 <div id="modal" class="modal hidden"><div class="sheet" id="modalBody"></div></div>
 <div id="toast" class="toast"></div>
 
-<script>
+<script type="module">
+import { initializeStorage, storageGet, storageSet, flushStorage, onStorageError } from './src/storage.js';
+
+// Abrir SQLite antes de ejecutar la aplicación y cargar cualquier dato.
+await initializeStorage();
 'use strict';
 
 /* =====================================================================
@@ -339,8 +343,8 @@ const SEP_KEY = 'nexora_sep';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function safeGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
-function safeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function safeGet(k, def) { try { return storageGet(k, def); } catch (e) { return def; } }
+function safeSet(k, v) { try { return storageSet(k, v); } catch (e) { return false; } }
 function uid() {
   try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
   return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -371,6 +375,12 @@ function sanitize(c) {
 
 let clients = safeGet(KEY, []).filter(c => c && c.name).map(sanitize);
 let saveFailedNotified = false;
+onStorageError(() => {
+  if (!saveFailedNotified) {
+    saveFailedNotified = true;
+    toast('No se pudo completar el guardado en la base de datos. Mantén la app abierta y exporta un respaldo cuando sea posible.');
+  }
+});
 function saveAll() {
   const ok = safeSet(KEY, clients);
   if (!ok && !saveFailedNotified) { saveFailedNotified = true; toast('No se pudo guardar: almacenamiento lleno o bloqueado. Exporta un respaldo.'); }
@@ -959,6 +969,12 @@ function check() {
   } catch (e) {}
 }
 setInterval(check, 15000);
+
+/* ===== Persistencia al cambiar el estado de la app ===== */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushStorage().catch(() => {});
+});
+window.addEventListener('pagehide', () => { flushStorage().catch(() => {}); });
 
 /* ===== Inicio ===== */
 saveAll();   // guarda los datos ya normalizados y dibuja la pantalla
