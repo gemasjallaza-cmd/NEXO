@@ -1,4 +1,3 @@
-
 name: Build NEXO Android APK
 
 on:
@@ -29,7 +28,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
 
       - name: Instalar dependencias web y Capacitor
         run: npm install
@@ -54,3 +52,4 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
