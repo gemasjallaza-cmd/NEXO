@@ -18,9 +18,10 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
 
-      - name: Preparar Node.js
+            - name: Preparar Node.js
         uses: actions/setup-node@v4
-        cache: npm
+        with:
+          node-version: 22
       - name: Preparar Java
         uses: actions/setup-java@v4
         with:
